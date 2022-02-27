@@ -79,6 +79,10 @@ impl Client {
                 options: self.cfg.options,
                 payer: self.cfg.payer.clone(),
             },
+            rpc_client: RpcClient::new_with_commitment(
+                self.cfg.cluster.url().to_string(),
+                self.cfg.options.unwrap_or_default(),
+            ),
         }
     }
 }
@@ -92,10 +96,11 @@ struct Config {
 }
 
 /// Program is the primary client handle to be used to build and send requests.
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct Program {
     program_id: Pubkey,
     cfg: Config,
+    rpc_client: RpcClient,
 }
 
 impl Program {
@@ -111,6 +116,7 @@ impl Program {
             self.cfg.payer.clone(),
             self.cfg.options,
             RequestNamespace::Global,
+            &self.rpc_client
         )
     }
 
@@ -122,16 +128,13 @@ impl Program {
             self.cfg.payer.clone(),
             self.cfg.options,
             RequestNamespace::State { new: false },
+            &self.rpc_client
         )
     }
 
     /// Returns the account at the given address.
     pub fn account<T: AccountDeserialize>(&self, address: Pubkey) -> Result<T, ClientError> {
-        let rpc_client = RpcClient::new_with_commitment(
-            self.cfg.cluster.url().to_string(),
-            self.cfg.options.unwrap_or_default(),
-        );
-        let account = rpc_client
+        let account = self.rpc_client
             .get_account_with_commitment(&address, CommitmentConfig::processed())?
             .value
             .ok_or(ClientError::AccountNotFound)?;
@@ -402,6 +405,8 @@ pub struct RequestBuilder<'a> {
     signers: Vec<&'a dyn Signer>,
     // True if the user is sending a state instruction.
     namespace: RequestNamespace,
+
+    rpc_client: &'a RpcClient,
 }
 
 #[derive(PartialEq)]
@@ -421,6 +426,7 @@ impl<'a> RequestBuilder<'a> {
         payer: Arc<dyn Signer>,
         options: Option<CommitmentConfig>,
         namespace: RequestNamespace,
+        rpc_client: &'a RpcClient,
     ) -> Self {
         Self {
             program_id,
@@ -432,6 +438,7 @@ impl<'a> RequestBuilder<'a> {
             instruction_data: None,
             signers: Vec::new(),
             namespace,
+            rpc_client: rpc_client
         }
     }
 
@@ -537,10 +544,10 @@ impl<'a> RequestBuilder<'a> {
         let mut signers = self.signers;
         signers.push(&*self.payer);
 
-        let rpc_client = RpcClient::new_with_commitment(self.cluster, self.options);
+        // let rpc_client = RpcClient::new_with_commitment(self.cluster, self.options);
 
         let tx = {
-            let (recent_hash, _fee_calc) = rpc_client.get_recent_blockhash()?;
+            let (recent_hash, _fee_calc) = self.rpc_client.get_recent_blockhash()?;
             Transaction::new_signed_with_payer(
                 &instructions,
                 Some(&self.payer.pubkey()),
@@ -549,7 +556,7 @@ impl<'a> RequestBuilder<'a> {
             )
         };
 
-        rpc_client
+        self.rpc_client
             .send_and_confirm_transaction(&tx)
             .map_err(Into::into)
     }
