@@ -25,6 +25,7 @@ use solana_sdk::signer::keypair::*;
 use solana_sdk::transaction::Transaction;
 use std::convert::Into;
 use std::iter::Map;
+use std::vec::IntoIter;
 use thiserror::Error;
 
 pub use anchor_lang;
