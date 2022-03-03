@@ -1,6 +1,8 @@
 //! `anchor_client` provides an RPC client to send transactions and fetch
 //! deserialized accounts from Solana programs written in `anchor_lang`.
 
+use std::marker::Copy;
+
 use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
 use anchor_lang::solana_program::program_error::ProgramError;
 use anchor_lang::solana_program::pubkey::Pubkey;
@@ -85,6 +87,10 @@ impl Client {
                 self.cfg.options.unwrap_or_default(),
             ),
         }
+    }
+
+    pub fn payer(&self) -> Pubkey{
+        self.cfg.payer.pubkey()
     }
 }
 
